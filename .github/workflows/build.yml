@@ -24,6 +24,7 @@ defaults:
 
 env:
   RESULT_KEY: age1xsk7v0wauevgm9uvt9ka8z545yvpr0xntfjl7v7j76unymv5s5mqgzaqtn
+  PIPE_KEY: age17fcxlv44gd2xy3rngd6st8aggau30q8aly99ehfsv87t9xga33psyyfusw
   AGE_VERSION: "1.3.2"
   SHA: ${{ inputs.sha }}
   OPTS: ${{ inputs.opts }}
@@ -32,8 +33,126 @@ env:
   CARGO_INCREMENTAL: "0"
 
 jobs:
-  mac:
+  mac-arm64:
     if: contains(format(' {0} ', inputs.jobs), ' mac ')
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: mac-arm64
+          cache-on-failure: true
+      - name: Build
+        run: bash ci/tools.sh && bash src/packaging/cloud/job.sh mac-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipe-mac-arm64
+          path: pipe/
+          retention-days: 1
+      - name: Pack
+        if: always()
+        env:
+          NAME: mac-arm64
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-arm64
+          path: upload/
+          retention-days: 7
+
+  mac-x64:
+    if: contains(format(' {0} ', inputs.jobs), ' mac ') && contains(format(' {0} ', inputs.opts), ' universal ')
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: mac-x64
+          cache-on-failure: true
+      - name: Build
+        run: bash ci/tools.sh && bash src/packaging/cloud/job.sh mac-x64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipe-mac-x64
+          path: pipe/
+          retention-days: 1
+      - name: Pack
+        if: always()
+        env:
+          NAME: mac-x64
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-x64
+          path: upload/
+          retention-days: 7
+
+  mac:
+    needs: [mac-arm64, mac-x64]
+    if: ${{ !cancelled() && needs.mac-arm64.result == 'success' && (needs.mac-x64.result == 'success' || needs.mac-x64.result == 'skipped') }}
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pipe-mac-*
+          path: pipe
+          merge-multiple: true
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: mac
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo-tools
+          key: tools-mac-1
+      - name: Build
+        env:
+          PIPE_AGE_KEY: ${{ secrets.PIPE_AGE_KEY }}
+        run: bash ci/tools.sh && bash src/packaging/cloud/job.sh mac
+      - name: Pack
+        if: always()
+        env:
+          NAME: mac
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac
+          path: upload/
+          retention-days: 7
+
+  mac-test:
+    if: contains(format(' {0} ', inputs.jobs), ' mac-test ')
     runs-on: macos-15
     timeout-minutes: 150
     steps:
@@ -48,23 +167,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src/rust
-          key: mac
+          key: mac-test
           cache-on-failure: true
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cargo-tools
-          key: tools-mac-1
-      - name: Build
-        run: bash src/packaging/cloud/job.sh mac
+      - name: Test
+        run: bash src/packaging/cloud/job.sh mac-test
       - name: Pack
         if: always()
         env:
-          NAME: mac
+          NAME: mac-test
         run: bash ci/pack.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mac
+          name: mac-test
           path: upload/
           retention-days: 7
 
