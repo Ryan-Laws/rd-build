@@ -1,0 +1,253 @@
+name: build
+run-name: ${{ inputs.tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        required: true
+      jobs:
+        required: true
+      opts:
+        default: ""
+      site:
+        default: ""
+      tag:
+        default: ""
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RESULT_KEY: age1xsk7v0wauevgm9uvt9ka8z545yvpr0xntfjl7v7j76unymv5s5mqgzaqtn
+  AGE_VERSION: "1.3.2"
+  SHA: ${{ inputs.sha }}
+  OPTS: ${{ inputs.opts }}
+  SITE_URL: ${{ inputs.site }}
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  mac:
+    if: contains(format(' {0} ', inputs.jobs), ' mac ')
+    runs-on: macos-15
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: mac
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo-tools
+          key: tools-mac-1
+      - name: Build
+        run: bash src/packaging/cloud/job.sh mac
+      - name: Pack
+        if: always()
+        env:
+          NAME: mac
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac
+          path: upload/
+          retention-days: 7
+
+  linux:
+    if: contains(format(' {0} ', inputs.jobs), ' linux ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust -> target/linux-u22
+          key: linux
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo-tools
+          key: tools-linux-1
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/image
+          key: image-${{ hashFiles('src/packaging/linux/Dockerfile', 'src/rust/rust-toolchain.toml') }}
+      - name: Build
+        run: bash src/packaging/cloud/job.sh linux
+      - name: Pack
+        if: always()
+        env:
+          NAME: linux
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux
+          path: upload/
+          retention-days: 7
+
+  linux-test:
+    if: contains(format(' {0} ', inputs.jobs), ' linux-test ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: linux-test
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo-tools
+            ~/.cache/cargo-xwin
+          key: tools-linux-test-1
+      - name: Test
+        run: bash src/packaging/cloud/job.sh linux-test
+      - name: Pack
+        if: always()
+        env:
+          NAME: linux-test
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-test
+          path: upload/
+          retention-days: 7
+
+  shaders:
+    if: contains(format(' {0} ', inputs.jobs), ' windows ')
+    runs-on: windows-2025
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - name: Build
+        run: bash src/packaging/cloud/job.sh shaders
+      - name: Pack
+        if: always()
+        env:
+          NAME: shaders-log
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shaders-log
+          path: upload/
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shaders
+          path: shaders/
+          retention-days: 1
+
+  windows:
+    needs: shaders
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: shaders
+          path: shaders
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: windows
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo-tools
+            ~/.cache/cargo-xwin
+          key: tools-windows-1
+      - name: Build
+        run: bash src/packaging/cloud/job.sh windows
+      - name: Pack
+        if: always()
+        env:
+          NAME: windows
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows
+          path: upload/
+          retention-days: 7
+
+  windows-test:
+    if: contains(format(' {0} ', inputs.jobs), ' windows-test ')
+    runs-on: windows-2025
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: windows-test
+          cache-on-failure: true
+      - name: Test
+        run: bash src/packaging/cloud/job.sh windows-test
+      - name: Pack
+        if: always()
+        env:
+          NAME: windows-test
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-test
+          path: upload/
+          retention-days: 7
