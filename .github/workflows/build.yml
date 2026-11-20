@@ -68,7 +68,7 @@ jobs:
         with:
           name: mac-arm64
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   mac-x64:
     if: contains(format(' {0} ', inputs.jobs), ' mac ') && contains(format(' {0} ', inputs.opts), ' universal ')
@@ -105,7 +105,7 @@ jobs:
         with:
           name: mac-x64
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   mac:
     needs: [mac-arm64, mac-x64]
@@ -149,7 +149,7 @@ jobs:
         with:
           name: mac
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   mac-test:
     if: contains(format(' {0} ', inputs.jobs), ' mac-test ')
@@ -181,7 +181,7 @@ jobs:
         with:
           name: mac-test
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   linux:
     if: contains(format(' {0} ', inputs.jobs), ' linux ')
@@ -221,7 +221,7 @@ jobs:
         with:
           name: linux
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   linux-test:
     if: contains(format(' {0} ', inputs.jobs), ' linux-test ')
@@ -259,7 +259,7 @@ jobs:
         with:
           name: linux-test
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   shaders:
     if: contains(format(' {0} ', inputs.jobs), ' windows ')
@@ -286,7 +286,7 @@ jobs:
         with:
           name: shaders-log
           path: upload/
-          retention-days: 7
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
           name: shaders
@@ -333,7 +333,7 @@ jobs:
         with:
           name: windows
           path: upload/
-          retention-days: 7
+          retention-days: 1
 
   windows-test:
     if: contains(format(' {0} ', inputs.jobs), ' windows-test ')
@@ -365,4 +365,4 @@ jobs:
         with:
           name: windows-test
           path: upload/
-          retention-days: 7
+          retention-days: 1
