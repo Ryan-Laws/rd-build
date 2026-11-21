@@ -223,6 +223,44 @@ jobs:
           path: upload/
           retention-days: 1
 
+  linux-lint:
+    if: contains(format(' {0} ', inputs.jobs), ' linux-test ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: linux-lint
+          cache-on-failure: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo-tools
+            ~/.cache/cargo-xwin
+          key: tools-linux-test-1
+      - name: Lint
+        run: bash src/packaging/cloud/job.sh linux-lint
+      - name: Pack
+        if: always()
+        env:
+          NAME: linux-lint
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-lint
+          path: upload/
+          retention-days: 1
+
   linux-test:
     if: contains(format(' {0} ', inputs.jobs), ' linux-test ')
     runs-on: ubuntu-24.04
