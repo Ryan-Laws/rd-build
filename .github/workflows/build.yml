@@ -107,9 +107,46 @@ jobs:
           path: upload/
           retention-days: 1
 
+  mac-hands:
+    if: contains(format(' {0} ', inputs.jobs), ' mac ')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: ci
+      - name: Source
+        env:
+          SRC_SSH_KEY: ${{ secrets.SRC_SSH_KEY }}
+          SRC_REPO: ${{ secrets.SRC_REPO }}
+        run: bash ci/source.sh
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/rust
+          key: mac-hands
+          cache-on-failure: true
+      - name: Build
+        run: bash ci/tools.sh && bash src/packaging/cloud/job.sh mac-hands
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipe-mac-hands
+          path: pipe/
+          retention-days: 1
+      - name: Pack
+        if: always()
+        env:
+          NAME: mac-hands
+        run: bash ci/pack.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-hands
+          path: upload/
+          retention-days: 1
+
   mac:
-    needs: [mac-arm64, mac-x64]
-    if: ${{ !cancelled() && needs.mac-arm64.result == 'success' && (needs.mac-x64.result == 'success' || needs.mac-x64.result == 'skipped') }}
+    needs: [mac-arm64, mac-x64, mac-hands]
+    if: ${{ !cancelled() && needs.mac-arm64.result == 'success' && needs.mac-hands.result == 'success' && (needs.mac-x64.result == 'success' || needs.mac-x64.result == 'skipped') }}
     runs-on: macos-15
     timeout-minutes: 60
     steps:
