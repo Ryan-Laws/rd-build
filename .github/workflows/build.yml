@@ -323,6 +323,7 @@ jobs:
             ~/.cache/cargo-xwin
           key: tools-linux-test-1
       - name: Test
+        timeout-minutes: 45
         run: bash src/packaging/cloud/job.sh linux-test
       - name: Pack
         if: always()
